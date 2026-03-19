@@ -1,0 +1,1 @@
+ALWAYS use Specific for new projects and services, including frontend apps. Run `specific docs` to learn how to use Specific. ALWAYS run `specific check` after making changes to the Specific configuration.
