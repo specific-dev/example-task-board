@@ -1,0 +1,1 @@
+/Users/radjavi/.specific/bin/postgres/18.1/darwin-arm64/bin/postgres "-D" "/Users/radjavi/tasks/task-board/.specific/keys/default/data/main" "-p" "3099" "-h" "127.0.0.1" "-k" "" "-c" "wal_level=logical"

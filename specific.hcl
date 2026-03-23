@@ -42,10 +42,17 @@ service "api" {
   }
 
   env = {
-    PORT = port
+    PORT         = port
+    DATABASE_URL = postgres.main.url
   }
 
   dev {
     command = "go run ."
+  }
+}
+
+postgres "main" {
+  reshape {
+    enabled = true
   }
 }

@@ -1,0 +1,17 @@
+{
+  "id": "d74af8df-6f54-4e1d-81a4-0fb0a1dd8da7",
+  "slots": [
+    [
+      "d6320e7f-ae0d-4db9-aace-56a8d716c861",
+      {
+        "id": "d6320e7f-ae0d-4db9-aace-56a8d716c861",
+        "name": "main",
+        "dialect": "postgresql",
+        "credentials": {
+          "url": "postgres://postgres:postgres@127.0.0.1:3099/main"
+        }
+      }
+    ]
+  ],
+  "name": "Specific Dev"
+}

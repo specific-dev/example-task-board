@@ -1,0 +1,13 @@
+[[actions]]
+type = "custom"
+start = """
+INSERT INTO tasks (title, description, status, tags) VALUES
+  ('Design system tokens', 'Define color palette, typography scale, and spacing tokens for the component library.', 'todo', '[{"label":"Design","color":"#7c3aed"},{"label":"Foundation","color":"#0891b2"}]'),
+  ('Set up CI pipeline', 'Configure GitHub Actions for linting, type checking, and running tests on every PR.', 'todo', '[{"label":"DevOps","color":"#ea580c"}]'),
+  ('User authentication flow', 'Implement sign-up, login, and password reset screens with form validation.', 'todo', '[{"label":"Feature","color":"#2563eb"},{"label":"Auth","color":"#dc2626"}]'),
+  ('API rate limiting', 'Add middleware to enforce per-user rate limits on all public API endpoints.', 'in-progress', '[{"label":"Backend","color":"#16a34a"},{"label":"Security","color":"#dc2626"}]'),
+  ('Dashboard layout', 'Build the responsive grid layout for the main dashboard with sidebar navigation.', 'in-progress', '[{"label":"Feature","color":"#2563eb"},{"label":"UI","color":"#7c3aed"}]'),
+  ('Database indexing', 'Optimize slow queries by adding composite indexes on frequently filtered columns.', 'done', '[{"label":"Backend","color":"#16a34a"},{"label":"Performance","color":"#ca8a04"}]'),
+  ('Onboarding tooltip tour', 'Create a guided tooltip walkthrough for first-time users after sign-up.', 'done', '[{"label":"Feature","color":"#2563eb"},{"label":"UX","color":"#7c3aed"}]')
+"""
+abort = "DELETE FROM tasks"

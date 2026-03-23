@@ -1,0 +1,34 @@
+[[actions]]
+type = "create_table"
+name = "tasks"
+primary_key = ["id"]
+
+  [[actions.columns]]
+  name = "id"
+  type = "INTEGER"
+  generated = "ALWAYS AS IDENTITY"
+
+  [[actions.columns]]
+  name = "title"
+  type = "TEXT"
+  nullable = false
+
+  [[actions.columns]]
+  name = "description"
+  type = "TEXT"
+  default = "''"
+
+  [[actions.columns]]
+  name = "status"
+  type = "TEXT"
+  nullable = false
+
+  [[actions.columns]]
+  name = "tags"
+  type = "JSONB"
+  default = "'[]'"
+
+  [[actions.columns]]
+  name = "created_at"
+  type = "TIMESTAMPTZ"
+  default = "NOW()"
