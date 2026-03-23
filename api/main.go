@@ -2,9 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 type Tag struct {
@@ -19,6 +23,11 @@ type Task struct {
 	Status      string `json:"status"`
 	Tags        []Tag  `json:"tags"`
 }
+
+var (
+	mu     sync.Mutex
+	nextID = 8
+)
 
 var tasks = []Task{
 	{
@@ -72,6 +81,19 @@ var tasks = []Task{
 	},
 }
 
+func cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -81,18 +103,50 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /tasks", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		json.NewEncoder(w).Encode(tasks)
 	})
 
-	mux.HandleFunc("OPTIONS /tasks", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.WriteHeader(http.StatusNoContent)
+	mux.HandleFunc("POST /tasks", func(w http.ResponseWriter, r *http.Request) {
+		var t Task
+		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+		if t.Title == "" || t.Status == "" {
+			http.Error(w, "title and status are required", http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		t.ID = strconv.Itoa(nextID)
+		nextID++
+		if t.Tags == nil {
+			t.Tags = []Tag{}
+		}
+		tasks = append(tasks, t)
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(t)
+	})
+
+	mux.HandleFunc("DELETE /tasks/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimPrefix(r.URL.Path, "/tasks/")
+		mu.Lock()
+		defer mu.Unlock()
+		for i, t := range tasks {
+			if t.ID == id {
+				tasks = append(tasks[:i], tasks[i+1:]...)
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+		}
+		http.Error(w, fmt.Sprintf("task %s not found", id), http.StatusNotFound)
 	})
 
 	log.Printf("API server listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	log.Fatal(http.ListenAndServe(":"+port, cors(mux)))
 }

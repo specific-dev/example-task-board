@@ -14,6 +14,25 @@ function App() {
       .then(setTasks)
   }, [])
 
+  const handleCreate = async (title: string, status: Task["status"]) => {
+    const res = await fetch(`${API_URL}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, description: "", status, tags: [] }),
+    })
+    if (res.ok) {
+      const task: Task = await res.json()
+      setTasks((prev) => [...prev, task])
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    const res = await fetch(`${API_URL}/tasks/${id}`, { method: "DELETE" })
+    if (res.ok) {
+      setTasks((prev) => prev.filter((t) => t.id !== id))
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border px-8 py-5">
@@ -30,6 +49,8 @@ function App() {
               title={column.title}
               status={column.id}
               tasks={tasks.filter((t) => t.status === column.id)}
+              onCreate={handleCreate}
+              onDelete={handleDelete}
             />
           ))}
         </div>
