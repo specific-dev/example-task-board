@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "owner": {
+    "pid": 12463,
+    "command": "dev",
+    "startedAt": "2026-03-23T08:59:13.343Z"
+  },
+  "databases": {},
+  "services": {
+    "api": {
+      "pid": 12467,
+      "port": 3001
+    },
+    "web": {
+      "pid": 12468,
+      "port": 3002
+    }
+  }
+}

@@ -1,7 +1,19 @@
-import { columns, tasks } from "./data"
+import { useEffect, useState } from "react"
+import { columns, type Task } from "./data"
 import { TaskColumn } from "./components/task-column"
 
+const apiHost = import.meta.env.VITE_API_URL as string
+const API_URL = apiHost.includes("://") ? apiHost : `https://${apiHost}`
+
 function App() {
+  const [tasks, setTasks] = useState<Task[]>([])
+
+  useEffect(() => {
+    fetch(`${API_URL}/tasks`)
+      .then((res) => res.json())
+      .then(setTasks)
+  }, [])
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border px-8 py-5">
