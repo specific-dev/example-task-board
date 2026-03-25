@@ -1,0 +1,16 @@
+[[actions]]
+type = "add_column"
+table = "tasks"
+
+  [actions.column]
+  name = "user_id"
+  type = "INTEGER"
+
+[[actions]]
+type = "add_foreign_key"
+table = "tasks"
+
+  [actions.foreign_key]
+  columns = ["user_id"]
+  referenced_table = "users"
+  referenced_columns = ["id"]

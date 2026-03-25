@@ -1,3 +1,10 @@
+secret "google_client_id" {}
+secret "google_client_secret" {}
+
+secret "jwt_secret" {
+  generated = true
+}
+
 build "web" {
   base    = "node"
   command = "npm run build"
@@ -9,7 +16,7 @@ build "web" {
 
 service "web" {
   build   = build.web
-  command = "npx serve dist -l $PORT"
+  command = "npx serve dist -s -l $PORT"
 
   endpoint {
     public = true
@@ -42,12 +49,21 @@ service "api" {
   }
 
   env = {
-    PORT         = port
-    DATABASE_URL = postgres.main.url
+    PORT                 = port
+    DATABASE_URL         = postgres.main.url
+    GOOGLE_CLIENT_ID     = secret.google_client_id
+    GOOGLE_CLIENT_SECRET = secret.google_client_secret
+    JWT_SECRET           = secret.jwt_secret
+    WEB_URL              = "https://${service.web.public_url}"
+    API_URL              = "https://${service.api.public_url}"
   }
 
   dev {
     command = "go run ."
+    env = {
+      WEB_URL = "http://${service.web.public_url}"
+      API_URL = "http://${service.api.public_url}"
+    }
   }
 }
 

@@ -1,10 +1,10 @@
 {
-  "id": "d74af8df-6f54-4e1d-81a4-0fb0a1dd8da7",
+  "id": "a232ddf6-cecc-4efc-8c7a-22b0ab9f6823",
   "slots": [
     [
-      "d6320e7f-ae0d-4db9-aace-56a8d716c861",
+      "adff090a-efc7-41bc-a08c-0103b2e19a48",
       {
-        "id": "d6320e7f-ae0d-4db9-aace-56a8d716c861",
+        "id": "adff090a-efc7-41bc-a08c-0103b2e19a48",
         "name": "main",
         "dialect": "postgresql",
         "credentials": {

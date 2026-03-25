@@ -1,0 +1,43 @@
+[[actions]]
+type = "create_table"
+name = "users"
+primary_key = ["id"]
+
+  [[actions.columns]]
+  name = "id"
+  type = "INTEGER"
+  generated = "ALWAYS AS IDENTITY"
+
+  [[actions.columns]]
+  name = "google_id"
+  type = "TEXT"
+  nullable = false
+
+  [[actions.columns]]
+  name = "email"
+  type = "TEXT"
+  nullable = false
+
+  [[actions.columns]]
+  name = "name"
+  type = "TEXT"
+  nullable = false
+
+  [[actions.columns]]
+  name = "avatar_url"
+  type = "TEXT"
+  default = "''"
+
+  [[actions.columns]]
+  name = "created_at"
+  type = "TIMESTAMPTZ"
+  default = "NOW()"
+
+[[actions]]
+type = "add_index"
+table = "users"
+
+  [actions.index]
+  name = "users_google_id_idx"
+  columns = ["google_id"]
+  unique = true
