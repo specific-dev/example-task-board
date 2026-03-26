@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { columns, type Task } from "./data"
 import { TaskColumn } from "./components/task-column"
 import { useAuth } from "./hooks/use-auth"
+import { useTaskSync } from "./hooks/use-task-sync"
 import { LogOut } from "lucide-react"
 import { Button } from "./components/ui/button"
 
@@ -72,38 +73,27 @@ function LoginPage() {
 
 function Board({
   user,
+  token,
   logout,
   authFetch,
 }: {
   user: { name: string; email: string; avatar_url: string }
+  token: string
   logout: () => void
   authFetch: (url: string, opts?: RequestInit) => Promise<Response>
 }) {
-  const [tasks, setTasks] = useState<Task[]>([])
-
-  useEffect(() => {
-    authFetch(`${API_URL}/tasks`)
-      .then((res) => res.json())
-      .then(setTasks)
-  }, [authFetch])
+  const tasks = useTaskSync(API_URL, token)
 
   const handleCreate = async (title: string, status: Task["status"]) => {
-    const res = await authFetch(`${API_URL}/tasks`, {
+    await authFetch(`${API_URL}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, description: "", status, tags: [] }),
     })
-    if (res.ok) {
-      const task: Task = await res.json()
-      setTasks((prev) => [...prev, task])
-    }
   }
 
   const handleDelete = async (id: string) => {
-    const res = await authFetch(`${API_URL}/tasks/${id}`, { method: "DELETE" })
-    if (res.ok) {
-      setTasks((prev) => prev.filter((t) => t.id !== id))
-    }
+    await authFetch(`${API_URL}/tasks/${id}`, { method: "DELETE" })
   }
 
   return (
@@ -158,7 +148,7 @@ function Board({
 }
 
 function App() {
-  const { user, loading, saveToken, logout, authFetch } = useAuth(API_URL)
+  const { user, loading, token, saveToken, logout, authFetch } = useAuth(API_URL)
 
   const isCallback = window.location.pathname === "/auth/callback"
 
@@ -178,7 +168,7 @@ function App() {
     return <LoginPage />
   }
 
-  return <Board user={user} logout={logout} authFetch={authFetch} />
+  return <Board user={user} token={token!} logout={logout} authFetch={authFetch} />
 }
 
 export default App

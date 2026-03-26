@@ -55,6 +55,8 @@ var (
 	db          *pgxpool.Pool
 	oauthConfig *oauth2.Config
 	jwtSecret   []byte
+	syncURL     string
+	syncSecret  string
 )
 
 func cors(next http.Handler) http.Handler {
@@ -162,6 +164,9 @@ func main() {
 		apiURL = fmt.Sprintf("http://localhost:%s", port)
 	}
 
+	syncURL = os.Getenv("DATABASE_SYNC_URL")
+	syncSecret = os.Getenv("DATABASE_SYNC_SECRET")
+
 	oauthConfig = &oauth2.Config{
 		ClientID:     googleClientID,
 		ClientSecret: googleClientSecret,
@@ -188,6 +193,9 @@ func main() {
 	mux.HandleFunc("GET /tasks", authMiddleware(handleGetTasks))
 	mux.HandleFunc("POST /tasks", authMiddleware(handleCreateTask))
 	mux.HandleFunc("DELETE /tasks/{id}", authMiddleware(handleDeleteTask))
+
+	// Sync proxy (authenticated)
+	mux.HandleFunc("GET /sync/tasks", authMiddleware(handleSyncTasks))
 
 	log.Printf("API server listening on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, cors(mux)))
@@ -362,4 +370,64 @@ func handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func handleSyncTasks(w http.ResponseWriter, r *http.Request) {
+	if syncURL == "" {
+		http.Error(w, "sync not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	userID := getUserID(r)
+
+	// Build upstream URL with server-controlled params
+	upstream := fmt.Sprintf("%s/v1/shape", syncURL)
+	params := fmt.Sprintf("table=tasks&where=user_id=%d&secret=%s", userID, syncSecret)
+
+	// Forward only Electric protocol params from client
+	for _, key := range []string{"offset", "handle", "live", "cursor"} {
+		if val := r.URL.Query().Get(key); val != "" {
+			params += "&" + key + "=" + val
+		}
+	}
+
+	reqURL := upstream + "?" + params
+	upstreamReq, err := http.NewRequestWithContext(r.Context(), "GET", reqURL, nil)
+	if err != nil {
+		http.Error(w, "failed to create upstream request", http.StatusInternalServerError)
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(upstreamReq)
+	if err != nil {
+		http.Error(w, "sync engine unavailable", http.StatusBadGateway)
+		log.Printf("Sync proxy error: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Expose Electric headers, strip upstream CORS/caching
+	electricHeaders := []string{
+		"electric-handle", "electric-offset", "electric-schema",
+		"electric-cursor", "electric-up-to-date", "electric-chunk-last-offset",
+	}
+	exposeList := strings.Join(electricHeaders, ", ")
+
+	for _, h := range electricHeaders {
+		if v := resp.Header.Get(h); v != "" {
+			w.Header().Set(h, v)
+		}
+	}
+
+	// Copy content type
+	if ct := resp.Header.Get("Content-Type"); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	}
+
+	// Set our own CORS/caching headers (strip upstream ones)
+	w.Header().Set("Access-Control-Expose-Headers", exposeList)
+	w.Header().Set("Cache-Control", "no-store")
+
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }

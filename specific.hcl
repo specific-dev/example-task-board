@@ -51,6 +51,8 @@ service "api" {
   env = {
     PORT                 = port
     DATABASE_URL         = postgres.main.url
+    DATABASE_SYNC_URL    = postgres.main.sync.url
+    DATABASE_SYNC_SECRET = postgres.main.sync.secret
     GOOGLE_CLIENT_ID     = secret.google_client_id
     GOOGLE_CLIENT_SECRET = secret.google_client_secret
     JWT_SECRET           = secret.jwt_secret
