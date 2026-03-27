@@ -2,6 +2,8 @@ import type { Task } from "@/data"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
+import { useDraggable } from "@dnd-kit/core"
+import { CSS } from "@dnd-kit/utilities"
 
 interface TaskCardProps {
   task: Task
@@ -9,8 +11,22 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, onDelete }: TaskCardProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+  })
+
+  const style = transform
+    ? { transform: CSS.Translate.toString(transform) }
+    : undefined
+
   return (
-    <div className="group/card rounded-lg border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`group/card cursor-grab touch-none rounded-lg border border-border bg-card p-4 active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-medium text-card-foreground">
           {task.title}
@@ -19,6 +35,7 @@ export function TaskCard({ task, onDelete }: TaskCardProps) {
           variant="ghost"
           size="icon-xs"
           className="shrink-0 opacity-0 transition-opacity group-hover/card:opacity-100 text-muted-foreground hover:text-destructive"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={() => onDelete(task.id)}
         >
           <Trash2 className="size-3" />

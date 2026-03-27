@@ -3,6 +3,7 @@ import type { Task, TaskStatus } from "@/data"
 import { TaskCard } from "./task-card"
 import { Button } from "./ui/button"
 import { Plus, X } from "lucide-react"
+import { useDroppable } from "@dnd-kit/core"
 
 const statusDot: Record<TaskStatus, string> = {
   "todo": "bg-gray-400",
@@ -22,6 +23,7 @@ export function TaskColumn({ title, status, tasks, onCreate, onDelete }: TaskCol
   const [adding, setAdding] = useState(false)
   const [newTitle, setNewTitle] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+  const { setNodeRef, isOver } = useDroppable({ id: status })
 
   useEffect(() => {
     if (adding) inputRef.current?.focus()
@@ -37,7 +39,7 @@ export function TaskColumn({ title, status, tasks, onCreate, onDelete }: TaskCol
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={setNodeRef} className={`flex flex-col gap-3 self-stretch rounded-xl p-2 -m-2 transition-colors ${isOver ? "bg-accent/50" : ""}`}>
       <div className="flex items-center gap-2 px-1">
         <span className={`h-2 w-2 rounded-full ${statusDot[status]}`} />
         <h2 className="text-sm font-medium text-foreground">{title}</h2>

@@ -1,10 +1,12 @@
-import { useEffect } from "react"
-import { columns, type Task } from "./data"
+import { useEffect, useState } from "react"
+import { columns, type Task, type TaskStatus } from "./data"
 import { TaskColumn } from "./components/task-column"
+import { TaskCard } from "./components/task-card"
 import { useAuth } from "./hooks/use-auth"
 import { useTaskSync } from "./hooks/use-task-sync"
 import { LogOut } from "lucide-react"
 import { Button } from "./components/ui/button"
+import { DndContext, DragOverlay, pointerWithin, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core"
 
 const apiHost = import.meta.env.VITE_API_URL as string
 const API_URL = apiHost.includes("://") ? apiHost : `https://${apiHost}`
@@ -82,7 +84,8 @@ function Board({
   logout: () => void
   authFetch: (url: string, opts?: RequestInit) => Promise<Response>
 }) {
-  const tasks = useTaskSync(API_URL, token)
+  const { tasks, optimisticMove } = useTaskSync(API_URL, token)
+  const [activeTask, setActiveTask] = useState<Task | null>(null)
 
   const handleCreate = async (title: string, status: Task["status"]) => {
     await authFetch(`${API_URL}/tasks`, {
@@ -96,8 +99,31 @@ function Board({
     await authFetch(`${API_URL}/tasks/${id}`, { method: "DELETE" })
   }
 
+  const handleDragStart = (event: DragStartEvent) => {
+    const task = tasks.find((t) => t.id === event.active.id)
+    if (task) setActiveTask(task)
+  }
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveTask(null)
+    const { active, over } = event
+    if (!over) return
+
+    const taskId = active.id as string
+    const newStatus = over.id as TaskStatus
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task || task.status === newStatus) return
+
+    optimisticMove(taskId, newStatus)
+    await authFetch(`${API_URL}/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    })
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <header className="flex items-center justify-between border-b border-border px-8 py-5">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           Task Board
@@ -129,19 +155,30 @@ function Board({
         </div>
       </header>
 
-      <main className="p-8">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {columns.map((column) => (
-            <TaskColumn
-              key={column.id}
-              title={column.title}
-              status={column.id}
-              tasks={tasks.filter((t) => t.status === column.id)}
-              onCreate={handleCreate}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
+      <main className="flex flex-1 flex-col p-8">
+        <DndContext
+          collisionDetection={pointerWithin}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid flex-1 grid-cols-1 gap-6 md:grid-cols-3">
+            {columns.map((column) => (
+              <TaskColumn
+                key={column.id}
+                title={column.title}
+                status={column.id}
+                tasks={tasks.filter((t) => t.status === column.id)}
+                onCreate={handleCreate}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+          <DragOverlay>
+            {activeTask ? (
+              <TaskCard task={activeTask} onDelete={() => {}} />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       </main>
     </div>
   )

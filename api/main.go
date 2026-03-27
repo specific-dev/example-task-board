@@ -62,7 +62,7 @@ var (
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -192,6 +192,7 @@ func main() {
 	// Task routes (all authenticated)
 	mux.HandleFunc("GET /tasks", authMiddleware(handleGetTasks))
 	mux.HandleFunc("POST /tasks", authMiddleware(handleCreateTask))
+	mux.HandleFunc("PATCH /tasks/{id}", authMiddleware(handleUpdateTask))
 	mux.HandleFunc("DELETE /tasks/{id}", authMiddleware(handleDeleteTask))
 
 	// Sync proxy (authenticated)
@@ -355,6 +356,38 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(t)
 }
 
+func handleUpdateTask(w http.ResponseWriter, r *http.Request) {
+	userID := getUserID(r)
+	id := r.PathValue("id")
+
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if body.Status == "" {
+		http.Error(w, "status is required", http.StatusBadRequest)
+		return
+	}
+
+	tag, err := db.Exec(r.Context(),
+		"UPDATE tasks SET status = $1 WHERE id = $2 AND user_id = $3",
+		body.Status, id, userID,
+	)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Printf("PATCH /tasks/%s error: %v", id, err)
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		http.Error(w, fmt.Sprintf("task %s not found", id), http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 	id := strings.TrimPrefix(r.URL.Path, "/tasks/")
@@ -385,7 +418,7 @@ func handleSyncTasks(w http.ResponseWriter, r *http.Request) {
 	params := fmt.Sprintf("table=tasks&where=user_id=%d&secret=%s", userID, syncSecret)
 
 	// Forward only Electric protocol params from client
-	for _, key := range []string{"offset", "handle", "live", "cursor"} {
+	for _, key := range []string{"offset", "handle", "live", "live_sse", "cursor", "expired_handle", "replica", "log"} {
 		if val := r.URL.Query().Get(key); val != "" {
 			params += "&" + key + "=" + val
 		}

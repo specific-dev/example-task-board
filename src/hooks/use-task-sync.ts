@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { ShapeStream, Shape, type Row } from "@electric-sql/client"
-import type { Task } from "../data"
+import type { Task, TaskStatus } from "../data"
 
 function parseTask(raw: Row): Task {
   let tags: Task["tags"] = []
@@ -19,7 +19,9 @@ function parseTask(raw: Row): Task {
 }
 
 export function useTaskSync(apiUrl: string, token: string | null) {
-  const [tasks, setTasks] = useState<Task[]>([])
+  const [serverTasks, setServerTasks] = useState<Task[]>([])
+  const overridesRef = useRef<Map<string, TaskStatus>>(new Map())
+  const [overrideVersion, setOverrideVersion] = useState(0)
 
   useEffect(() => {
     if (!token) return
@@ -34,7 +36,15 @@ export function useTaskSync(apiUrl: string, token: string | null) {
     const shape = new Shape(stream)
 
     const unsubscribe = shape.subscribe(({ rows }) => {
-      setTasks(rows.map(parseTask))
+      const parsed = rows.map(parseTask)
+      setServerTasks(parsed)
+      // Clear overrides that the server has caught up with
+      for (const [id, status] of overridesRef.current) {
+        const serverTask = parsed.find((t) => t.id === id)
+        if (serverTask && serverTask.status === status) {
+          overridesRef.current.delete(id)
+        }
+      }
     })
 
     return () => {
@@ -42,5 +52,17 @@ export function useTaskSync(apiUrl: string, token: string | null) {
     }
   }, [apiUrl, token])
 
-  return tasks
+  const optimisticMove = useCallback((taskId: string, newStatus: TaskStatus) => {
+    overridesRef.current.set(taskId, newStatus)
+    setOverrideVersion((v) => v + 1)
+  }, [])
+
+  const tasks = serverTasks.map((t) => {
+    const override = overridesRef.current.get(t.id)
+    return override ? { ...t, status: override } : t
+  })
+  // Read overrideVersion so React re-renders when optimistic updates change
+  void overrideVersion
+
+  return { tasks, optimisticMove }
 }
