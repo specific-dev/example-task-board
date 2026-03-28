@@ -58,6 +58,10 @@ service "api" {
     JWT_SECRET           = secret.jwt_secret
     WEB_URL              = "https://${service.web.public_url}"
     API_URL              = "https://${service.api.public_url}"
+    S3_ENDPOINT          = storage.attachments.endpoint
+    S3_ACCESS_KEY        = storage.attachments.access_key
+    S3_SECRET_KEY        = storage.attachments.secret_key
+    S3_BUCKET            = storage.attachments.bucket
   }
 
   dev {
@@ -74,3 +78,5 @@ postgres "main" {
     enabled = true
   }
 }
+
+storage "attachments" {}

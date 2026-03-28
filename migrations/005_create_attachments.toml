@@ -1,0 +1,44 @@
+[[actions]]
+type = "create_table"
+name = "attachments"
+primary_key = ["id"]
+
+  [[actions.columns]]
+  name = "id"
+  type = "INTEGER"
+  generated = "ALWAYS AS IDENTITY"
+
+  [[actions.columns]]
+  name = "task_id"
+  type = "INTEGER"
+  nullable = false
+
+  [[actions.columns]]
+  name = "user_id"
+  type = "INTEGER"
+  nullable = false
+
+  [[actions.columns]]
+  name = "filename"
+  type = "TEXT"
+  nullable = false
+
+  [[actions.columns]]
+  name = "content_type"
+  type = "TEXT"
+  nullable = false
+
+  [[actions.columns]]
+  name = "size"
+  type = "BIGINT"
+  nullable = false
+
+  [[actions.columns]]
+  name = "s3_key"
+  type = "TEXT"
+  nullable = false
+
+  [[actions.columns]]
+  name = "created_at"
+  type = "TIMESTAMPTZ"
+  default = "NOW()"

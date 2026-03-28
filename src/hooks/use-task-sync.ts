@@ -26,11 +26,15 @@ export function useTaskSync(apiUrl: string, token: string | null) {
   useEffect(() => {
     if (!token) return
 
+    const aborter = new AbortController()
+
     const stream = new ShapeStream({
       url: `${apiUrl}/sync/tasks`,
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      fetchClient: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+      signal: aborter.signal,
     })
 
     const shape = new Shape(stream)
@@ -49,6 +53,7 @@ export function useTaskSync(apiUrl: string, token: string | null) {
 
     return () => {
       unsubscribe()
+      aborter.abort()
     }
   }, [apiUrl, token])
 

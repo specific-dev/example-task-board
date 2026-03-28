@@ -4,6 +4,7 @@ import { TaskColumn } from "./components/task-column"
 import { TaskCard } from "./components/task-card"
 import { useAuth } from "./hooks/use-auth"
 import { useTaskSync } from "./hooks/use-task-sync"
+import { useAttachmentSync } from "./hooks/use-attachment-sync"
 import { LogOut } from "lucide-react"
 import { Button } from "./components/ui/button"
 import { DndContext, DragOverlay, pointerWithin, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core"
@@ -85,8 +86,8 @@ function Board({
   authFetch: (url: string, opts?: RequestInit) => Promise<Response>
 }) {
   const { tasks, optimisticMove } = useTaskSync(API_URL, token)
+  const { attachments } = useAttachmentSync(API_URL, token)
   const [activeTask, setActiveTask] = useState<Task | null>(null)
-
   const handleCreate = async (title: string, status: Task["status"]) => {
     await authFetch(`${API_URL}/tasks`, {
       method: "POST",
@@ -120,6 +121,30 @@ function Board({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     })
+  }
+
+  const handleAttach = async (taskId: string, file: File) => {
+    const formData = new FormData()
+    formData.append("file", file)
+    await authFetch(`${API_URL}/tasks/${taskId}/attachments`, {
+      method: "POST",
+      body: formData,
+    })
+  }
+
+  const handleDeleteAttachment = async (id: number) => {
+    await authFetch(`${API_URL}/attachments/${id}`, { method: "DELETE" })
+  }
+
+  const handleDownloadAttachment = async (id: number, filename: string) => {
+    const res = await authFetch(`${API_URL}/attachments/${id}/download`)
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -168,14 +193,25 @@ function Board({
                 title={column.title}
                 status={column.id}
                 tasks={tasks.filter((t) => t.status === column.id)}
+                attachments={attachments}
                 onCreate={handleCreate}
                 onDelete={handleDelete}
+                onAttach={handleAttach}
+                onDeleteAttachment={handleDeleteAttachment}
+                onDownloadAttachment={handleDownloadAttachment}
               />
             ))}
           </div>
           <DragOverlay>
             {activeTask ? (
-              <TaskCard task={activeTask} onDelete={() => {}} />
+              <TaskCard
+                task={activeTask}
+                attachments={attachments.filter((a) => a.task_id === Number(activeTask.id))}
+                onDelete={() => {}}
+                onAttach={() => {}}
+                onDeleteAttachment={() => {}}
+                onDownloadAttachment={() => {}}
+              />
             ) : null}
           </DragOverlay>
         </DndContext>
