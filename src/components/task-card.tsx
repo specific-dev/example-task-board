@@ -1,5 +1,6 @@
 import { useRef } from "react"
 import type { Task, Attachment } from "@/data"
+import { API_URL } from "@/data"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Trash2, Paperclip, Download, X } from "lucide-react"
@@ -15,6 +16,7 @@ function formatFileSize(bytes: number): string {
 interface TaskCardProps {
   task: Task
   attachments: Attachment[]
+  token: string
   onDelete: (id: string) => void
   onAttach: (taskId: string, file: File) => void
   onDeleteAttachment: (id: number) => void
@@ -24,6 +26,7 @@ interface TaskCardProps {
 export function TaskCard({
   task,
   attachments,
+  token,
   onDelete,
   onAttach,
   onDeleteAttachment,
@@ -88,47 +91,88 @@ export function TaskCard({
           {task.description}
         </p>
       )}
-      {(task.tags.length > 0 || attachments.length > 0) && (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {task.tags.map((tag) => (
-            <Badge
-              key={tag.label}
-              variant="secondary"
-              className="text-[11px] font-normal"
-              style={{
-                backgroundColor: `${tag.color}14`,
-                color: tag.color,
-              }}
-            >
-              {tag.label}
-            </Badge>
-          ))}
-          {attachments.map((att) => (
-            <span
-              key={att.id}
-              className="group/att inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              <Paperclip className="size-3 shrink-0" />
-              <span className="max-w-[100px] truncate" title={`${att.filename} (${formatFileSize(att.size)})`}>
-                {att.filename}
-              </span>
-              <button
-                className="hidden group-hover/att:inline-flex items-center text-muted-foreground hover:text-foreground"
-                onClick={() => onDownloadAttachment(att.id, att.filename)}
-              >
-                <Download className="size-3.5" />
-              </button>
-              <button
-                className="hidden group-hover/att:inline-flex items-center text-muted-foreground hover:text-destructive"
-                onClick={() => onDeleteAttachment(att.id)}
-              >
-                <X className="size-3.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+      {(() => {
+        const imageAtts = attachments.filter((a) => a.content_type.startsWith("image/"))
+        const otherAtts = attachments.filter((a) => !a.content_type.startsWith("image/"))
+        return (
+          <>
+            {imageAtts.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2" onPointerDown={(e) => e.stopPropagation()}>
+                {imageAtts.map((att) => (
+                  <div key={att.id} className="group/thumb relative">
+                    {att.thumbnail_s3_key ? (
+                      <img
+                        src={`${API_URL}/attachments/${att.id}/thumbnail?token=${token}`}
+                        alt={att.filename}
+                        className="h-16 w-16 rounded-lg border border-border object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-muted">
+                        <div className="h-10 w-10 animate-pulse rounded bg-muted-foreground/20" />
+                      </div>
+                    )}
+                    <div className="absolute -right-1 -top-1 hidden gap-0.5 group-hover/thumb:flex">
+                      <button
+                        className="rounded-full border border-border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
+                        onClick={() => onDownloadAttachment(att.id, att.filename)}
+                      >
+                        <Download className="size-3" />
+                      </button>
+                      <button
+                        className="rounded-full border border-border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-destructive"
+                        onClick={() => onDeleteAttachment(att.id)}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {(task.tags.length > 0 || otherAtts.length > 0) && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                {task.tags.map((tag) => (
+                  <Badge
+                    key={tag.label}
+                    variant="secondary"
+                    className="text-[11px] font-normal"
+                    style={{
+                      backgroundColor: `${tag.color}14`,
+                      color: tag.color,
+                    }}
+                  >
+                    {tag.label}
+                  </Badge>
+                ))}
+                {otherAtts.map((att) => (
+                  <span
+                    key={att.id}
+                    className="group/att inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <Paperclip className="size-3 shrink-0" />
+                    <span className="max-w-[100px] truncate" title={`${att.filename} (${formatFileSize(att.size)})`}>
+                      {att.filename}
+                    </span>
+                    <button
+                      className="hidden group-hover/att:inline-flex items-center text-muted-foreground hover:text-foreground"
+                      onClick={() => onDownloadAttachment(att.id, att.filename)}
+                    >
+                      <Download className="size-3.5" />
+                    </button>
+                    <button
+                      className="hidden group-hover/att:inline-flex items-center text-muted-foreground hover:text-destructive"
+                      onClick={() => onDeleteAttachment(att.id)}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        )
+      })()}
     </div>
   )
 }

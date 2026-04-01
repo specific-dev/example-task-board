@@ -11,6 +11,7 @@ function parseAttachment(raw: Row): Attachment {
     content_type: String(raw.content_type),
     size: Number(raw.size),
     s3_key: String(raw.s3_key),
+    thumbnail_s3_key: raw.thumbnail_s3_key != null ? String(raw.thumbnail_s3_key) : null,
     created_at: String(raw.created_at),
   }
 }

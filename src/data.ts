@@ -21,8 +21,12 @@ export interface Attachment {
   content_type: string
   size: number
   s3_key: string
+  thumbnail_s3_key: string | null
   created_at: string
 }
+
+const apiHost = import.meta.env.VITE_API_URL as string
+export const API_URL = apiHost.includes("://") ? apiHost : `https://${apiHost}`
 
 export const columns: { id: TaskStatus; title: string }[] = [
   { id: "todo", title: "To Do" },

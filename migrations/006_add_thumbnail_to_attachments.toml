@@ -1,0 +1,8 @@
+[[actions]]
+type = "add_column"
+table = "attachments"
+
+[actions.column]
+name = "thumbnail_s3_key"
+type = "TEXT"
+nullable = true

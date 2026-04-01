@@ -16,6 +16,7 @@ interface TaskColumnProps {
   status: TaskStatus
   tasks: Task[]
   attachments: Attachment[]
+  token: string
   onCreate: (title: string, status: TaskStatus) => void
   onDelete: (id: string) => void
   onAttach: (taskId: string, file: File) => void
@@ -23,7 +24,7 @@ interface TaskColumnProps {
   onDownloadAttachment: (id: number, filename: string) => void
 }
 
-export function TaskColumn({ title, status, tasks, attachments, onCreate, onDelete, onAttach, onDeleteAttachment, onDownloadAttachment }: TaskColumnProps) {
+export function TaskColumn({ title, status, tasks, attachments, token, onCreate, onDelete, onAttach, onDeleteAttachment, onDownloadAttachment }: TaskColumnProps) {
   const [adding, setAdding] = useState(false)
   const [newTitle, setNewTitle] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -92,6 +93,7 @@ export function TaskColumn({ title, status, tasks, attachments, onCreate, onDele
             key={task.id}
             task={task}
             attachments={attachments.filter((a) => a.task_id === Number(task.id))}
+            token={token}
             onDelete={onDelete}
             onAttach={onAttach}
             onDeleteAttachment={onDeleteAttachment}

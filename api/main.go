@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -17,9 +18,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"go.temporal.io/sdk/client"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
+
+type ThumbnailInput struct {
+	AttachmentID int `json:"attachment_id"`
+}
 
 type Tag struct {
 	Label string `json:"label"`
@@ -65,13 +71,14 @@ type contextKey string
 const userIDKey contextKey = "user_id"
 
 var (
-	db          *pgxpool.Pool
-	s3Client    *minio.Client
-	s3Bucket    string
-	oauthConfig *oauth2.Config
-	jwtSecret   []byte
-	syncURL     string
-	syncSecret  string
+	db             *pgxpool.Pool
+	s3Client       *minio.Client
+	s3Bucket       string
+	oauthConfig    *oauth2.Config
+	jwtSecret      []byte
+	syncURL        string
+	syncSecret     string
+	temporalClient client.Client
 )
 
 func cors(next http.Handler) http.Handler {
@@ -146,6 +153,27 @@ func generateStateToken() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
+func parseJWT(tokenStr string) (int, error) {
+	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method")
+		}
+		return jwtSecret, nil
+	})
+	if err != nil || !token.Valid {
+		return 0, fmt.Errorf("invalid token")
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return 0, fmt.Errorf("invalid claims")
+	}
+	uid, ok := claims["user_id"].(float64)
+	if !ok {
+		return 0, fmt.Errorf("no user_id")
+	}
+	return int(uid), nil
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -214,6 +242,31 @@ func main() {
 		log.Printf("S3 storage configured: %s/%s", s3Endpoint, s3Bucket)
 	}
 
+	// Temporal setup
+	temporalAddr := os.Getenv("TEMPORAL_ADDRESS")
+	if temporalAddr != "" {
+		temporalNS := os.Getenv("TEMPORAL_NAMESPACE")
+		if temporalNS == "" {
+			temporalNS = "default"
+		}
+		temporalAPIKey := os.Getenv("TEMPORAL_API_KEY")
+
+		opts := client.Options{
+			HostPort:  temporalAddr,
+			Namespace: temporalNS,
+		}
+		if temporalAPIKey != "" {
+			opts.Credentials = client.NewAPIKeyStaticCredentials(temporalAPIKey)
+		}
+		var err error
+		temporalClient, err = client.Dial(opts)
+		if err != nil {
+			log.Fatalf("Temporal client: %v", err)
+		}
+		defer temporalClient.Close()
+		log.Printf("Temporal client connected: %s/%s", temporalAddr, temporalNS)
+	}
+
 	oauthConfig = &oauth2.Config{
 		ClientID:     googleClientID,
 		ClientSecret: googleClientSecret,
@@ -246,6 +299,7 @@ func main() {
 	mux.HandleFunc("POST /tasks/{id}/attachments", authMiddleware(handleUploadAttachment))
 	mux.HandleFunc("DELETE /attachments/{id}", authMiddleware(handleDeleteAttachment))
 	mux.HandleFunc("GET /attachments/{id}/download", authMiddleware(handleDownloadAttachment))
+	mux.HandleFunc("GET /attachments/{id}/thumbnail", handleDownloadThumbnail)
 
 	// Sync proxy (authenticated)
 	mux.HandleFunc("GET /sync/tasks", authMiddleware(handleSyncTasks))
@@ -494,8 +548,16 @@ func handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 
-	_, err = s3Client.PutObject(r.Context(), s3Bucket, s3Key, file, header.Size, minio.PutObjectOptions{
-		ContentType: contentType,
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "failed to read file", http.StatusInternalServerError)
+		return
+	}
+
+	_, err = s3Client.PutObject(r.Context(), s3Bucket, s3Key, bytes.NewReader(fileBytes), int64(len(fileBytes)), minio.PutObjectOptions{
+		ContentType:          contentType,
+		DisableContentSha256: true,
+		SendContentMd5:       true,
 	})
 	if err != nil {
 		log.Printf("S3 upload error: %v", err)
@@ -514,6 +576,16 @@ func handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Insert attachment error: %v", err)
 		http.Error(w, "database error", http.StatusInternalServerError)
 		return
+	}
+
+	// Start thumbnail generation for image attachments
+	if strings.HasPrefix(contentType, "image/") && temporalClient != nil {
+		_, err := temporalClient.ExecuteWorkflow(r.Context(), client.StartWorkflowOptions{
+			TaskQueue: "thumbnail-tasks",
+		}, "GenerateThumbnailWorkflow", ThumbnailInput{AttachmentID: att.ID})
+		if err != nil {
+			log.Printf("Failed to start thumbnail workflow: %v", err)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -590,6 +662,60 @@ func handleDownloadAttachment(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", att.ContentType)
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, att.Filename))
+	io.Copy(w, obj)
+}
+
+func handleDownloadThumbnail(w http.ResponseWriter, r *http.Request) {
+	if s3Client == nil {
+		http.Error(w, "storage not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Support auth via query param for <img> tags
+	var userID int
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		uid, err := parseJWT(strings.TrimPrefix(authHeader, "Bearer "))
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		userID = uid
+	} else if tokenStr := r.URL.Query().Get("token"); tokenStr != "" {
+		uid, err := parseJWT(tokenStr)
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		userID = uid
+	} else {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	id := r.PathValue("id")
+
+	var thumbKey *string
+	err := db.QueryRow(r.Context(),
+		`SELECT a.thumbnail_s3_key FROM attachments a
+		 JOIN tasks t ON t.id = a.task_id
+		 WHERE a.id = $1 AND t.user_id = $2`,
+		id, userID,
+	).Scan(&thumbKey)
+	if err != nil || thumbKey == nil {
+		http.Error(w, "thumbnail not found", http.StatusNotFound)
+		return
+	}
+
+	obj, err := s3Client.GetObject(r.Context(), s3Bucket, *thumbKey, minio.GetObjectOptions{})
+	if err != nil {
+		http.Error(w, "download failed", http.StatusInternalServerError)
+		return
+	}
+	defer obj.Close()
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	io.Copy(w, obj)
 }
 

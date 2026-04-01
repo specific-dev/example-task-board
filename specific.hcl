@@ -62,6 +62,9 @@ service "api" {
     S3_ACCESS_KEY        = storage.attachments.access_key
     S3_SECRET_KEY        = storage.attachments.secret_key
     S3_BUCKET            = storage.attachments.bucket
+    TEMPORAL_ADDRESS     = temporal.jobs.url
+    TEMPORAL_NAMESPACE   = temporal.jobs.namespace
+    TEMPORAL_API_KEY     = temporal.jobs.api_key
   }
 
   dev {
@@ -80,3 +83,31 @@ postgres "main" {
 }
 
 storage "attachments" {}
+
+temporal "jobs" {}
+
+build "worker" {
+  base    = "go"
+  root    = "worker"
+  command = "go build -o worker"
+}
+
+service "worker" {
+  build   = build.worker
+  command = "./worker"
+
+  env = {
+    TEMPORAL_ADDRESS   = temporal.jobs.url
+    TEMPORAL_NAMESPACE = temporal.jobs.namespace
+    TEMPORAL_API_KEY   = temporal.jobs.api_key
+    DATABASE_URL       = postgres.main.url
+    S3_ENDPOINT        = storage.attachments.endpoint
+    S3_ACCESS_KEY      = storage.attachments.access_key
+    S3_SECRET_KEY      = storage.attachments.secret_key
+    S3_BUCKET          = storage.attachments.bucket
+  }
+
+  dev {
+    command = "go run ."
+  }
+}

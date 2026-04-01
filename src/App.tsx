@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { columns, type Task, type TaskStatus } from "./data"
+import { columns, API_URL, type Task, type TaskStatus } from "./data"
 import { TaskColumn } from "./components/task-column"
 import { TaskCard } from "./components/task-card"
 import { useAuth } from "./hooks/use-auth"
@@ -8,9 +8,6 @@ import { useAttachmentSync } from "./hooks/use-attachment-sync"
 import { LogOut } from "lucide-react"
 import { Button } from "./components/ui/button"
 import { DndContext, DragOverlay, pointerWithin, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core"
-
-const apiHost = import.meta.env.VITE_API_URL as string
-const API_URL = apiHost.includes("://") ? apiHost : `https://${apiHost}`
 
 function AuthCallback({
   onToken,
@@ -194,6 +191,7 @@ function Board({
                 status={column.id}
                 tasks={tasks.filter((t) => t.status === column.id)}
                 attachments={attachments}
+                token={token}
                 onCreate={handleCreate}
                 onDelete={handleDelete}
                 onAttach={handleAttach}
@@ -207,6 +205,7 @@ function Board({
               <TaskCard
                 task={activeTask}
                 attachments={attachments.filter((a) => a.task_id === Number(activeTask.id))}
+                token={token}
                 onDelete={() => {}}
                 onAttach={() => {}}
                 onDeleteAttachment={() => {}}
