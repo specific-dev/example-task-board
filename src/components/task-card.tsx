@@ -53,17 +53,17 @@ export function TaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group/card cursor-grab touch-none rounded-lg border border-border bg-card p-4 active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
+      className={`group/card cursor-grab touch-none rounded-lg border border-border bg-card px-3.5 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_2px_4px_rgba(0,0,0,0.06)] active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-medium text-card-foreground">
+        <h3 className="text-[13px] text-card-foreground">
           {task.title}
         </h3>
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/card:opacity-100">
           <Button
             variant="ghost"
             size="icon-xs"
-            className="text-muted-foreground hover:text-foreground"
+            className="size-5 text-muted-foreground hover:text-foreground"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => fileInputRef.current?.click()}
           >
@@ -72,7 +72,7 @@ export function TaskCard({
           <Button
             variant="ghost"
             size="icon-xs"
-            className="text-muted-foreground hover:text-destructive"
+            className="size-5 text-muted-foreground hover:text-destructive"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onDelete(task.id)}
           >
@@ -87,7 +87,7 @@ export function TaskCard({
         />
       </div>
       {task.description && (
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
           {task.description}
         </p>
       )}
@@ -97,18 +97,18 @@ export function TaskCard({
         return (
           <>
             {imageAtts.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2" onPointerDown={(e) => e.stopPropagation()}>
+              <div className="mt-2.5 flex flex-wrap gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
                 {imageAtts.map((att) => (
                   <div key={att.id} className="group/thumb relative">
                     {att.thumbnail_s3_key ? (
                       <img
                         src={`${API_URL}/attachments/${att.id}/thumbnail?token=${token}`}
                         alt={att.filename}
-                        className="h-16 w-16 rounded-lg border border-border object-cover"
+                        className="h-14 w-14 rounded border border-border object-cover"
                       />
                     ) : (
-                      <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-muted">
-                        <div className="h-10 w-10 animate-pulse rounded bg-muted-foreground/20" />
+                      <div className="flex h-14 w-14 items-center justify-center rounded border border-border bg-muted">
+                        <div className="h-8 w-8 animate-pulse rounded bg-muted-foreground/20" />
                       </div>
                     )}
                     <div className="absolute -right-1 -top-1 hidden gap-0.5 group-hover/thumb:flex">
@@ -116,13 +116,13 @@ export function TaskCard({
                         className="rounded-full border border-border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-foreground"
                         onClick={() => onDownloadAttachment(att.id, att.filename)}
                       >
-                        <Download className="size-3" />
+                        <Download className="size-2.5" />
                       </button>
                       <button
                         className="rounded-full border border-border bg-background p-0.5 text-muted-foreground shadow-sm hover:text-destructive"
                         onClick={() => onDeleteAttachment(att.id)}
                       >
-                        <X className="size-3" />
+                        <X className="size-2.5" />
                       </button>
                     </div>
                   </div>
@@ -130,14 +130,14 @@ export function TaskCard({
               </div>
             )}
             {(task.tags.length > 0 || otherAtts.length > 0) && (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <div className="mt-2.5 flex flex-wrap items-center gap-1">
                 {task.tags.map((tag) => (
                   <Badge
                     key={tag.label}
                     variant="secondary"
-                    className="text-[11px] font-normal"
+                    className="h-[18px] rounded px-1.5 text-[10px] font-normal"
                     style={{
-                      backgroundColor: `${tag.color}14`,
+                      backgroundColor: `${tag.color}18`,
                       color: tag.color,
                     }}
                   >
@@ -147,24 +147,24 @@ export function TaskCard({
                 {otherAtts.map((att) => (
                   <span
                     key={att.id}
-                    className="group/att inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground"
+                    className="group/att inline-flex items-center gap-1 rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground"
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    <Paperclip className="size-3 shrink-0" />
-                    <span className="max-w-[100px] truncate" title={`${att.filename} (${formatFileSize(att.size)})`}>
+                    <Paperclip className="size-2.5 shrink-0" />
+                    <span className="max-w-[80px] truncate" title={`${att.filename} (${formatFileSize(att.size)})`}>
                       {att.filename}
                     </span>
                     <button
                       className="hidden group-hover/att:inline-flex items-center text-muted-foreground hover:text-foreground"
                       onClick={() => onDownloadAttachment(att.id, att.filename)}
                     >
-                      <Download className="size-3.5" />
+                      <Download className="size-3" />
                     </button>
                     <button
                       className="hidden group-hover/att:inline-flex items-center text-muted-foreground hover:text-destructive"
                       onClick={() => onDeleteAttachment(att.id)}
                     >
-                      <X className="size-3.5" />
+                      <X className="size-3" />
                     </button>
                   </span>
                 ))}

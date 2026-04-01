@@ -5,10 +5,28 @@ import { Button } from "./ui/button"
 import { Plus, X } from "lucide-react"
 import { useDroppable } from "@dnd-kit/core"
 
-const statusDot: Record<TaskStatus, string> = {
-  "todo": "bg-gray-400",
-  "in-progress": "bg-blue-500",
-  "done": "bg-emerald-500",
+function StatusIcon({ status }: { status: TaskStatus }) {
+  if (status === "todo") {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="6" stroke="#bbb" strokeWidth="1.5" strokeDasharray="3 2" />
+      </svg>
+    )
+  }
+  if (status === "in-progress") {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="6" stroke="#e8b339" strokeWidth="1.5" />
+        <path d="M7 1a6 6 0 0 1 0 12" fill="#e8b339" />
+      </svg>
+    )
+  }
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <circle cx="7" cy="7" r="6.5" fill="#5e994e" />
+      <path d="M4.5 7.2l1.8 1.8 3.2-3.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
 interface TaskColumnProps {
@@ -44,24 +62,24 @@ export function TaskColumn({ title, status, tasks, attachments, token, onCreate,
   }
 
   return (
-    <div ref={setNodeRef} className={`flex flex-col gap-3 self-stretch rounded-xl p-2 -m-2 transition-colors ${isOver ? "bg-accent/50" : ""}`}>
-      <div className="flex items-center gap-2 px-1">
-        <span className={`h-2 w-2 rounded-full ${statusDot[status]}`} />
+    <div ref={setNodeRef} className={`flex min-w-[280px] flex-1 flex-col rounded-lg transition-colors ${isOver ? "bg-accent" : ""}`}>
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <StatusIcon status={status} />
         <h2 className="text-sm font-medium text-foreground">{title}</h2>
         <span className="text-xs text-muted-foreground">{tasks.length}</span>
         <Button
           variant="ghost"
           size="icon-xs"
-          className="ml-auto"
+          className="ml-auto text-muted-foreground hover:text-foreground"
           onClick={() => setAdding(true)}
         >
           <Plus className="size-3.5" />
         </Button>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 px-1.5 pb-1.5 overflow-y-auto">
         {adding && (
-          <div className="rounded-lg border border-border bg-card p-3">
+          <div className="rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm">
             <input
               ref={inputRef}
               type="text"
