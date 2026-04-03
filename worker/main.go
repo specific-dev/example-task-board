@@ -8,7 +8,7 @@ import (
 	"image/jpeg"
 	_ "image/gif"
 	_ "image/png"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -134,9 +134,12 @@ func (a *Activities) GenerateThumbnail(ctx context.Context, input ThumbnailInput
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
 	temporalAddr := os.Getenv("TEMPORAL_ADDRESS")
 	if temporalAddr == "" {
-		log.Fatal("TEMPORAL_ADDRESS is required")
+		slog.Error("missing required env var", "var", "TEMPORAL_ADDRESS")
+		os.Exit(1)
 	}
 	temporalNS := os.Getenv("TEMPORAL_NAMESPACE")
 	if temporalNS == "" {
@@ -146,7 +149,8 @@ func main() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		log.Fatal("DATABASE_URL is required")
+		slog.Error("missing required env var", "var", "DATABASE_URL")
+		os.Exit(1)
 	}
 
 	s3Endpoint := os.Getenv("S3_ENDPOINT")
@@ -159,7 +163,8 @@ func main() {
 	// Database
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		log.Fatalf("DB connect: %v", err)
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
 
@@ -171,7 +176,8 @@ func main() {
 		Secure: useSSL,
 	})
 	if err != nil {
-		log.Fatalf("S3 client: %v", err)
+		slog.Error("failed to create S3 client", "error", err)
+		os.Exit(1)
 	}
 
 	// Temporal client
@@ -184,7 +190,8 @@ func main() {
 	}
 	c, err := client.Dial(opts)
 	if err != nil {
-		log.Fatalf("Temporal client: %v", err)
+		slog.Error("failed to connect temporal client", "error", err)
+		os.Exit(1)
 	}
 	defer c.Close()
 
@@ -197,8 +204,9 @@ func main() {
 		s3Bucket: s3BucketName,
 	})
 
-	log.Println("Thumbnail worker starting...")
+	slog.Info("thumbnail worker starting")
 	if err := w.Run(worker.InterruptCh()); err != nil {
-		log.Fatalf("Worker error: %v", err)
+		slog.Error("worker failed", "error", err)
+		os.Exit(1)
 	}
 }

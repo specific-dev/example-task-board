@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 .specific/
 specific.local
+
+api/api
+worker/worker

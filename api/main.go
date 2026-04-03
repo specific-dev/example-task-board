@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -175,6 +175,8 @@ func parseJWT(tokenStr string) (int, error) {
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -182,23 +184,27 @@ func main() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		log.Fatal("DATABASE_URL is required")
+		slog.Error("missing required env var", "var", "DATABASE_URL")
+		os.Exit(1)
 	}
 
 	jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 	if len(jwtSecret) == 0 {
-		log.Fatal("JWT_SECRET is required")
+		slog.Error("missing required env var", "var", "JWT_SECRET")
+		os.Exit(1)
 	}
 
 	webURL := os.Getenv("WEB_URL")
 	if webURL == "" {
-		log.Fatal("WEB_URL is required")
+		slog.Error("missing required env var", "var", "WEB_URL")
+		os.Exit(1)
 	}
 
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
 	if googleClientID == "" || googleClientSecret == "" {
-		log.Fatal("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are required")
+		slog.Error("missing required env vars", "vars", "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET")
+		os.Exit(1)
 	}
 
 	apiURL := os.Getenv("API_URL")
@@ -226,20 +232,23 @@ func main() {
 			Secure: useSSL,
 		})
 		if err != nil {
-			log.Fatalf("Failed to create S3 client: %v", err)
+			slog.Error("failed to create S3 client", "error", err)
+			os.Exit(1)
 		}
 		// Ensure bucket exists
 		ctx := context.Background()
 		exists, err := s3Client.BucketExists(ctx, s3Bucket)
 		if err != nil {
-			log.Fatalf("Failed to check bucket: %v", err)
+			slog.Error("failed to check bucket", "error", err)
+			os.Exit(1)
 		}
 		if !exists {
 			if err := s3Client.MakeBucket(ctx, s3Bucket, minio.MakeBucketOptions{}); err != nil {
-				log.Fatalf("Failed to create bucket: %v", err)
+				slog.Error("failed to create bucket", "error", err)
+				os.Exit(1)
 			}
 		}
-		log.Printf("S3 storage configured: %s/%s", s3Endpoint, s3Bucket)
+		slog.Info("S3 storage configured", "endpoint", s3Endpoint, "bucket", s3Bucket)
 	}
 
 	// Temporal setup
@@ -261,10 +270,11 @@ func main() {
 		var err error
 		temporalClient, err = client.Dial(opts)
 		if err != nil {
-			log.Fatalf("Temporal client: %v", err)
+			slog.Error("failed to connect temporal client", "error", err)
+			os.Exit(1)
 		}
 		defer temporalClient.Close()
-		log.Printf("Temporal client connected: %s/%s", temporalAddr, temporalNS)
+		slog.Info("Temporal client connected", "address", temporalAddr, "namespace", temporalNS)
 	}
 
 	oauthConfig = &oauth2.Config{
@@ -278,7 +288,8 @@ func main() {
 	var err error
 	db, err = pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v", err)
+		slog.Error("unable to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -305,8 +316,11 @@ func main() {
 	mux.HandleFunc("GET /sync/tasks", authMiddleware(handleSyncTasks))
 	mux.HandleFunc("GET /sync/attachments", authMiddleware(handleSyncAttachments))
 
-	log.Printf("API server listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, cors(mux)))
+	slog.Info("API server listening", "port", port)
+	if err := http.ListenAndServe(":"+port, cors(mux)); err != nil {
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
+	}
 }
 
 func handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
@@ -325,7 +339,7 @@ func handleGoogleCallback(webURL string) http.HandlerFunc {
 
 		token, err := oauthConfig.Exchange(r.Context(), code)
 		if err != nil {
-			log.Printf("OAuth exchange error: %v", err)
+			slog.Error("OAuth exchange failed", "error", err)
 			http.Error(w, "oauth exchange failed", http.StatusInternalServerError)
 			return
 		}
@@ -333,7 +347,7 @@ func handleGoogleCallback(webURL string) http.HandlerFunc {
 		client := oauthConfig.Client(r.Context(), token)
 		resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 		if err != nil {
-			log.Printf("Failed to get user info: %v", err)
+			slog.Error("failed to get user info", "error", err)
 			http.Error(w, "failed to get user info", http.StatusInternalServerError)
 			return
 		}
@@ -361,7 +375,7 @@ func handleGoogleCallback(webURL string) http.HandlerFunc {
 			googleUser.ID, googleUser.Email, googleUser.Name, googleUser.Picture,
 		).Scan(&userID)
 		if err != nil {
-			log.Printf("User upsert error: %v", err)
+			slog.Error("user upsert failed", "error", err)
 			http.Error(w, "database error", http.StatusInternalServerError)
 			return
 		}
@@ -402,7 +416,7 @@ func handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Printf("GET /tasks query error: %v", err)
+		slog.Error("query failed", "endpoint", "GET /tasks", "error", err)
 		return
 	}
 	defer rows.Close()
@@ -413,7 +427,7 @@ func handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		var tagsJSON []byte
 		if err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.Status, &tagsJSON); err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Printf("GET /tasks scan error: %v", err)
+			slog.Error("scan failed", "endpoint", "GET /tasks", "error", err)
 			return
 		}
 		if err := json.Unmarshal(tagsJSON, &t.Tags); err != nil {
@@ -454,7 +468,7 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	).Scan(&t.ID)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Printf("POST /tasks insert error: %v", err)
+		slog.Error("insert failed", "endpoint", "POST /tasks", "error", err)
 		return
 	}
 
@@ -485,7 +499,7 @@ func handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Printf("PATCH /tasks/%s error: %v", id, err)
+		slog.Error("update failed", "endpoint", "PATCH /tasks", "task_id", id, "error", err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -502,7 +516,7 @@ func handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	tag, err := db.Exec(r.Context(), "DELETE FROM tasks WHERE id = $1 AND user_id = $2", id, userID)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Printf("DELETE /tasks/%s error: %v", id, err)
+		slog.Error("delete failed", "endpoint", "DELETE /tasks", "task_id", id, "error", err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -560,7 +574,7 @@ func handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 		SendContentMd5:       true,
 	})
 	if err != nil {
-		log.Printf("S3 upload error: %v", err)
+		slog.Error("S3 upload failed", "error", err)
 		http.Error(w, "upload failed", http.StatusInternalServerError)
 		return
 	}
@@ -573,7 +587,7 @@ func handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 		taskID, userID, header.Filename, contentType, header.Size, s3Key,
 	).Scan(&att.ID, &att.TaskID, &att.UserID, &att.Filename, &att.ContentType, &att.Size, &att.S3Key, &att.CreatedAt)
 	if err != nil {
-		log.Printf("Insert attachment error: %v", err)
+		slog.Error("insert attachment failed", "error", err)
 		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
@@ -584,7 +598,7 @@ func handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
 			TaskQueue: "thumbnail-tasks",
 		}, "GenerateThumbnailWorkflow", ThumbnailInput{AttachmentID: att.ID})
 		if err != nil {
-			log.Printf("Failed to start thumbnail workflow: %v", err)
+			slog.Error("failed to start thumbnail workflow", "error", err)
 		}
 	}
 
@@ -617,13 +631,13 @@ func handleDeleteAttachment(w http.ResponseWriter, r *http.Request) {
 
 	// Delete from S3
 	if err := s3Client.RemoveObject(r.Context(), s3Bucket, s3Key, minio.RemoveObjectOptions{}); err != nil {
-		log.Printf("S3 delete error: %v", err)
+		slog.Error("S3 delete failed", "error", err)
 	}
 
 	// Delete from DB
 	_, err = db.Exec(r.Context(), "DELETE FROM attachments WHERE id = $1", id)
 	if err != nil {
-		log.Printf("Delete attachment DB error: %v", err)
+		slog.Error("delete attachment failed", "error", err)
 		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
@@ -654,7 +668,7 @@ func handleDownloadAttachment(w http.ResponseWriter, r *http.Request) {
 
 	obj, err := s3Client.GetObject(r.Context(), s3Bucket, att.S3Key, minio.GetObjectOptions{})
 	if err != nil {
-		log.Printf("S3 download error: %v", err)
+		slog.Error("S3 download failed", "error", err)
 		http.Error(w, "download failed", http.StatusInternalServerError)
 		return
 	}
@@ -746,7 +760,7 @@ func proxySyncShape(w http.ResponseWriter, r *http.Request, table string, where 
 	resp, err := http.DefaultClient.Do(upstreamReq)
 	if err != nil {
 		http.Error(w, "sync engine unavailable", http.StatusBadGateway)
-		log.Printf("Sync proxy error: %v", err)
+		slog.Error("sync proxy failed", "error", err)
 		return
 	}
 	defer resp.Body.Close()
