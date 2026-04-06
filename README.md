@@ -1,5 +1,9 @@
 # Task Board
 
+![Task Board](screenshot.png)
+
+![Infrastructure](screenshot-infra.png)
+
 A collaborative task board app built with [Specific](https://specific.dev), demonstrating how to go from zero to a full-stack production app using a single infrastructure config file.
 
 [Try the live app](https://beautiful-kangaroo.spcf.app/)
